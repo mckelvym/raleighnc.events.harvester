@@ -1,0 +1,121 @@
+import com.github.spotbugs.snom.SpotBugsTask
+
+plugins {
+    id 'java'
+    id 'application'
+    id 'checkstyle'
+    id 'com.github.spotbugs' version '6.4.5'
+    id 'com.google.cloud.tools.jib' version '3.5.4'
+}
+
+group = 'raleighnc.events'
+version = '1.0.0'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // JSoup for HTML parsing
+    implementation 'org.jsoup:jsoup:1.21.2'
+    // JSR-305 annotations (@Nullable)
+    compileOnly 'com.github.spotbugs:spotbugs-annotations:4.8.3'
+    // Logging
+    implementation 'org.slf4j:slf4j-api:2.0.17'
+    implementation 'org.slf4j:jul-to-slf4j:2.0.17' // SLF4J-JUL bridge
+    implementation 'ch.qos.logback:logback-classic:1.5.21'
+
+    // Selenium for JavaScript-rendered content
+    implementation 'org.seleniumhq.selenium:selenium-java:4.38.0'
+    implementation 'org.seleniumhq.selenium:selenium-chrome-driver:4.38.0'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:6.0.1'
+    testImplementation 'org.mockito:mockito-core:5.20.0'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.20.0'
+    testImplementation 'org.assertj:assertj-core:3.27.6'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+application {
+    mainClass = 'raleighnc.events.EventsHarvesterApplication'
+}
+
+// Configure the default run task
+run {
+    if (project.hasProperty('args')) {
+        args project.property('args')
+    } else {
+        args 'events.xml'
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.deprecation = true
+}
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat "full"
+    }
+}
+
+// Checkstyle configuration
+checkstyle {
+    toolVersion = '12.1.2'
+    configFile = file("${projectDir}/config/checkstyle/checkstyle.xml")
+    maxWarnings = 0
+    maxErrors = 0
+}
+
+// More lenient checkstyle for tests
+tasks.named('checkstyleTest') {
+    enabled = false
+}
+
+spotbugs {
+    ignoreFailures = false
+}
+
+tasks.withType(SpotBugsTask).configureEach {
+    reports {
+        html.required = true
+        xml.required = false
+    }
+}
+
+tasks.named('spotbugsTest') {
+    enabled = false
+}
+
+jib {
+    from {
+        image = 'selenium/standalone-chromium:4.49.0-20260909'
+        platforms {
+            platform {
+                architecture = 'amd64'
+                os = 'linux'
+            }
+            platform {
+                architecture = 'arm64'
+                os = 'linux'
+            }
+        }
+    }
+    container {
+        mainClass = application.mainClass
+        args = ['events.xml']
+        jvmFlags = [
+                '-XX:+UseContainerSupport',
+                '-XX:MaxRAMPercentage=75.0'
+        ]
+        creationTime = 'USE_CURRENT_TIMESTAMP'
+    }
+}
