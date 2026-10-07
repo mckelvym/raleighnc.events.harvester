@@ -75,12 +75,7 @@ class ScraperConfigurationImplTest {
     @Test
     void testGetPagesToFetch() {
         assertThat(config.getPagesToFetch())
-                .isEqualTo(3);
+                .isEqualTo(1);
     }
 
-    @Test
-    void testUseHtmlDescription() {
-        assertThat(config.useHtmlDescription())
-                .isTrue();
-    }
 }

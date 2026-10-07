@@ -1,143 +1,70 @@
 package raleighnc.events.scraper.impl;
 
 import static java.util.Objects.requireNonNull;
+import static raleighnc.events.parser.impl.CssSelectors.ARTICLE_TAG;
 import static raleighnc.events.parser.impl.CssSelectors.C_TEASER;
-import static raleighnc.events.parser.impl.CssSelectors.DATE_DATELINE_TEXT;
-import static raleighnc.events.parser.impl.CssSelectors.DATE_TIME;
 import static raleighnc.events.parser.impl.CssSelectors.EVENT_LINK_ARTICLE;
 import static raleighnc.events.parser.impl.CssSelectors.EVENT_LINK_TEASER;
 import static raleighnc.events.parser.impl.HtmlConstants.ABS_HREF_ATTR;
-import static raleighnc.events.parser.impl.HtmlConstants.DATETIME_ATTR;
 
-import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import raleighnc.events.parser.impl.DateParser;
 
 /**
- * Discovers event article links from Raleigh NC listing pages.
- * Extracts URLs and publication dates from event teasers.
+ * Discovers news teasers on Raleigh NC news listing pages.
+ *
+ * <p>Each teaser carries everything the feed needs (title, link, date, image), so items are
+ * built from the listing alone. Article pages sit behind a Cloudflare challenge that does not
+ * clear from the production server.
  */
 public final class EventLinkDiscoverer {
 
     private static final Logger LOG =
         LoggerFactory.getLogger(EventLinkDiscoverer.class);
-    private final DateParser dateParser;
-
-    public EventLinkDiscoverer() {
-        dateParser = new DateParser();
-    }
-
-    private boolean containsUrl(final List<EventLink> links,
-                                final String url) {
-        for (final EventLink link : links) {
-            if (link.getUrl().equals(url)) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     /**
-     * Discovers all news links from a listing page.
+     * Discovers news teasers keyed by their absolute article URL (the item GUID).
      *
-     * @param document the JSoup document of the listing page
-     * @return list of news links with URLs and dates
+     * @param document the listing page
+     * @return teaser container elements keyed by article URL, in page order
      */
-    public List<EventLink> discoverLinks(final Document document) {
-        final List<EventLink> links = new ArrayList<>();
+    public Map<String, Element> discoverTeasers(final Document document) {
+        requireNonNull(document, "document must not be null");
+        final Map<String, Element> teasers = new LinkedHashMap<>();
 
-        // Find all news teaser links
-        final Elements teaserLinks =
-            document.select(EVENT_LINK_TEASER);
-
-        for (final Element link : teaserLinks) {
+        for (final Element link : document.select(EVENT_LINK_TEASER)) {
             final String href = link.attr(ABS_HREF_ATTR);
             if (isValidNewsUrl(href)) {
-                final Element teaser = findTeaserContainer(link);
-                final LocalDate date = extractDateFromTeaser(teaser);
-                links.add(new EventLink(href, date));
+                teasers.putIfAbsent(href, findTeaserContainer(link));
             }
         }
 
-        // Fallback: find any article links
-        if (links.isEmpty()) {
-            final Elements articleLinks =
-                document.select(EVENT_LINK_ARTICLE);
-            for (final Element link : articleLinks) {
+        // Fallback: any article links, should the teaser markup change
+        if (teasers.isEmpty()) {
+            for (final Element link : document.select(EVENT_LINK_ARTICLE)) {
                 final String href = link.attr(ABS_HREF_ATTR);
-                if (isValidNewsUrl(href) && !containsUrl(links, href)) {
-                    final Element article = findArticleContainer(link);
-                    final LocalDate date = extractDateFromTeaser(article);
-                    links.add(new EventLink(href, date));
+                if (isValidNewsUrl(href)) {
+                    teasers.putIfAbsent(href, findArticleContainer(link));
                 }
             }
         }
 
-        LOG.info("Discovered {} event links", links.size());
-        return links;
-    }
-
-    private LocalDate extractDateFromTeaser(final Element container) {
-        if (container == null) {
-            return null;
-        }
-
-        // Strategy 1: Look for c-dateline__text
-        final Elements dateElems = container.select(DATE_DATELINE_TEXT);
-        if (!dateElems.isEmpty()) {
-            final String dateText = requireNonNull(dateElems.first()).text().trim();
-            final LocalDate parsed = dateParser.parse(dateText);
-            if (parsed != null) {
-                return parsed;
-            }
-        }
-
-        // Strategy 2: Look for any time element
-        final Elements timeElems = container.select(DATE_TIME);
-        for (final Element timeElem : timeElems) {
-            final String datetime = timeElem.attr(DATETIME_ATTR);
-            if (!datetime.isEmpty()) {
-                final LocalDate parsed = dateParser.parse(datetime);
-                if (parsed != null) {
-                    return parsed;
-                }
-            }
-            final String timeText = timeElem.text().trim();
-            final LocalDate parsed = dateParser.parse(timeText);
-            if (parsed != null) {
-                return parsed;
-            }
-        }
-
-        return null;
+        LOG.info("Discovered {} event links", teasers.size());
+        return teasers;
     }
 
     private Element findArticleContainer(final Element link) {
-        Element current = link;
-        while (current != null) {
-            if (EVENT_LINK_ARTICLE.equals(current.tagName())) {
-                return current;
-            }
-            current = current.parent();
-        }
-        return requireNonNull(link).parent();
+        final Element article = link.closest(ARTICLE_TAG);
+        return article != null ? article : requireNonNull(link.parent());
     }
 
     private Element findTeaserContainer(final Element link) {
-        Element current = link;
-        while (current != null) {
-            if (current.hasClass(C_TEASER)) {
-                return current;
-            }
-            current = current.parent();
-        }
-        return requireNonNull(link).parent();
+        final Element teaser = link.closest("." + C_TEASER);
+        return teaser != null ? teaser : requireNonNull(link.parent());
     }
 
     private boolean isValidNewsUrl(final String url) {
