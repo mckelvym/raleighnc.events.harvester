@@ -72,7 +72,7 @@ public final class EventsHarvesterApplication {
         LOG.info("Found {} existing events", existingGuids.size());
 
         try (WebDriverManager driverManager = new ChromeDriverManager(config)) {
-            final EventParser eventParser = new EventParserImpl(config);
+            final EventParser eventParser = new EventParserImpl();
             final PageLoader pageLoader = new PageLoader(
                 driverManager.getDriver(), config.getPageLoadTimeout(),
                 config.getChallengeTimeout(), config.getRequestDelay());

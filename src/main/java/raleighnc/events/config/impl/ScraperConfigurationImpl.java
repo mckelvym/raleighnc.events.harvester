@@ -15,7 +15,12 @@ public final class ScraperConfigurationImpl implements ScraperConfiguration {
             "Latest news from Raleigh Parks and Recreation";
     private static final String FEED_TITLE =
             "Raleigh NC Parks and Recreation News";
-    private static final int PAGES_TO_FETCH = 3;
+    /**
+     * Only the first listing page: from the production server, later listing pages and all
+     * article pages get a Cloudflare challenge that never clears. Page 1 holds the newest 12
+     * teasers, several days of news, and the job runs several times a day.
+     */
+    private static final int PAGES_TO_FETCH = 1;
     private static final Duration PAGE_LOAD_TIMEOUT = Duration.ofSeconds(10);
     private static final Duration REQUEST_DELAY = Duration.ofSeconds(1);
     private static final int RETENTION_DAYS = 7;
@@ -25,7 +30,6 @@ public final class ScraperConfigurationImpl implements ScraperConfiguration {
      * version does not match the actual browser.
      */
     private static final String USER_AGENT = "";
-    private static final boolean USE_HTML_DESCRIPTION = true;
 
     @Override
     public String getBaseUrl() {
@@ -77,8 +81,4 @@ public final class ScraperConfigurationImpl implements ScraperConfiguration {
         return USER_AGENT;
     }
 
-    @Override
-    public boolean useHtmlDescription() {
-        return USE_HTML_DESCRIPTION;
-    }
 }

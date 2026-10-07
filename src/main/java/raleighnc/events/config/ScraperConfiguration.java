@@ -78,12 +78,4 @@ public interface ScraperConfiguration {
      * @return the base request delay, or zero for no delay
      */
     Duration getRequestDelay();
-
-    /**
-     * Gets whether to use HTML content for descriptions.
-     * When enabled, links and formatting are preserved in RSS descriptions.
-     *
-     * @return true to use HTML, false to use plain text
-     */
-    boolean useHtmlDescription();
 }
